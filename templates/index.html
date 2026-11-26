@@ -1,0 +1,49 @@
+{% extends "base.html" %} {% block title %}Home - Group Food & Expense Splitter{% endblock %} {% block content %}
+✨ The Fair Way to Split Restaurant Bills
+GROUP FOOD & EXPENSE SPLITTER
+Split restaurant and food bills accurately based on what each individual person actually consumes. Nobody pays for food they didn't eat. Support for Veg, Non-Veg, Drinks, and shared items.
+
+🚀 Start New Group Bill 📋 View Saved Bills
+Why Use Fair Splitter?
+Equal bill splitting isn't fair when people order different things. Here is how we make it effortless:
+
+🥗
+Individual Allocation
+Assign items strictly to the person who ate them. A vegetarian never pays for someone else's mutton biryani.
+
+🥤
+Smart Shared Items
+Shared a pizza or water bottle among 3 out of 5 friends? Split that item cost evenly only among those 3.
+
+📊
+Category Breakdown
+Categorize items into Veg, Non-Veg, Drinks, and Other to see exactly where group money went.
+
+📄
+PDF & CSV Export
+Generate clean, printable restaurant invoices or download complete breakdown spreadsheets with 1 click.
+
+Previous Restaurant Bills
+Access, edit, or view summaries for previously saved group expenses.
+
+View All Groups →
+{% if groups %}
+{% for g in groups[:4] %}
+{{ g.name }}
+{{ g.updated_at[:16] }}
+{{ g.total_bill|currency }}
+{% if g.notes %}
+"{{ g.notes }}"
+
+{% endif %}
+👥 {{ g.member_count }} Members 🍽️ {{ g.item_count }} Items
+Edit / Add Items View Summary
+{% endfor %}
+{% else %}
+🍽️
+No bills created yet
+Start your first group bill now and see how easy it is to split fairly!
+
++ Start First Group
+{% endif %}
+{% endblock %}

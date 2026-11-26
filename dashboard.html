@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Group Food & Expense Splitter{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div class="header-left">
+        <h1>Bills Dashboard</h1>
+        <p class="subtitle">Manage all your saved group meals, restaurant outings, and bill settlements.</p>
+    </div>
+    <div class="header-right">
+        <button class="btn btn-primary" onclick="openNewGroupModal()">+ Start New Group</button>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon indigo">💰</div>
+        <div class="stat-info">
+            <span class="stat-label">Total Amount Tracked</span>
+            <span class="stat-value">{{ total_spent|currency }}</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon emerald">📑</div>
+        <div class="stat-info">
+            <span class="stat-label">Saved Groups / Bills</span>
+            <span class="stat-value">{{ total_groups }}</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon amber">👥</div>
+        <div class="stat-info">
+            <span class="stat-label">Total People Included</span>
+            <span class="stat-value">{{ total_people }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Groups List Section -->
+<div class="dashboard-section card">
+    <div class="card-header-flex">
+        <h2>All Saved Groups</h2>
+        <div class="search-box">
+            <input type="text" id="group-search" placeholder="Search by restaurant or group name..." oninput="filterGroups()">
+        </div>
+    </div>
+
+    {% if groups %}
+    <div class="table-responsive">
+        <table class="data-table" id="groups-table">
+            <thead>
+                <tr>
+                    <th>Group / Restaurant</th>
+                    <th>Date</th>
+                    <th>Members</th>
+                    <th>Items</th>
+                    <th>Total Bill</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in groups %}
+                <tr class="group-row" data-name="{{ g.name|lower }}">
+                    <td>
+                        <strong>{{ g.name }}</strong>
+                        {% if g.notes %}<br><small class="text-muted">{{ g.notes }}</small>{% endif %}
+                    </td>
+                    <td><small>{{ g.updated_at[:16] }}</small></td>
+                    <td><span class="badge badge-gray">{{ g.member_count }} people</span></td>
+                    <td><span class="badge badge-gray">{{ g.item_count }} items</span></td>
+                    <td><strong class="text-success">{{ g.total_bill|currency }}</strong></td>
+                    <td class="text-right table-actions">
+                        <a href="{{ url_for('group_detail', group_id=g.id) }}" class="btn btn-xs btn-outline" title="Manage Members & Items">Manage</a>
+                        <a href="{{ url_for('group_summary_view', group_id=g.id) }}" class="btn btn-xs btn-primary" title="View Final Summary">Summary</a>
+                        <a href="{{ url_for('export_csv', group_id=g.id) }}" class="btn btn-xs btn-secondary" title="Export CSV">CSV</a>
+                        <button class="btn btn-xs btn-danger" onclick="confirmDeleteGroup({{ g.id }}, '{{ g.name }}')" title="Delete Group">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state-card">
+        <div class="empty-icon">📂</div>
+        <h3>No saved bills yet</h3>
+        <p>Create your first group meal to start tracking and splitting bills fairly!</p>
+        <button class="btn btn-primary" onclick="openNewGroupModal()">Create Group Now</button>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

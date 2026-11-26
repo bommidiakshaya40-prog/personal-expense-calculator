@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }} - Manage Expenses{% endblock %}
+
+{% block content %}
+<div class="group-page-header">
+    <div class="header-breadcrumb">
+        <a href="{{ url_for('dashboard') }}">&larr; Back to Dashboard</a>
+    </div>
+    <div class="header-main-flex">
+        <div>
+            <div class="title-with-badge">
+                <h1 id="group-name-heading">{{ group.name }}</h1>
+                <span class="badge badge-primary">Group ID: #{{ group.id }}</span>
+            </div>
+            {% if group.notes %}
+            <p class="group-notes-text">📝 {{ group.notes }}</p>
+            {% endif %}
+        </div>
+        <div class="header-action-buttons">
+            <button class="btn btn-secondary btn-sm" onclick="openEditGroupModal({{ group.id }}, '{{ group.name }}', '{{ group.notes }}')">✏️ Edit Group Info</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="confirmClearExpenses({{ group.id }})">🧹 Clear All Items</button>
+            <a href="{{ url_for('group_summary_view', group_id=group.id) }}" class="btn btn-primary">📊 View Final Settlement &rarr;</a>
+        </div>
+    </div>
+</div>
+
+<div class="group-grid-layout">
+    <!-- Left Column: Members & Add Item Form -->
+    <div class="group-left-col">
+        
+        <!-- SECTION 1: Group Members -->
+        <div class="card mb-4" id="members-card">
+            <div class="card-header-flex">
+                <h3>👥 Group Members (<span id="member-count-badge">{{ members|length }}</span>)</h3>
+            </div>
+            <div class="card-body">
+                <!-- Add Member Form -->
+                <div class="add-member-form">
+                    <input type="text" id="new-member-name" class="form-input" placeholder="Enter friend's name (e.g. Person A, Rahul)">
+                    <button class="btn btn-primary" onclick="submitAddMember({{ group.id }})">+ Add</button>
+                </div>
+
+                <!-- Members List Badges -->
+                <div class="members-chips-container" id="members-list">
+                    {% if members %}
+                        {% for m in members %}
+                        <div class="member-chip" id="chip-member-{{ m.id }}">
+                            <span class="member-avatar">{{ m.name[0]|upper }}</span>
+                            <span class="member-chip-name">{{ m.name }}</span>
+                            <button class="chip-delete-btn" onclick="confirmDeleteMember({{ m.id }}, '{{ m.name }}')" title="Remove member">&times;</button>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted empty-text" id="no-members-msg">No members added yet. Add at least one person to start allocating items!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: Add Food Item Form -->
+        <div class="card" id="add-item-card">
+            <div class="card-header-flex">
+                <h3>🍽️ Add Food / Drink Item</h3>
+            </div>
+            <div class="card-body">
+                {% if not members %}
+                <div class="alert alert-warning" id="add-item-warning">
+                    ⚠️ Please add at least one group member above before adding food items.
+                </div>
+                {% endif %}
+
+                <form id="add-item-form" onsubmit="event.preventDefault(); submitAddFoodItem({{ group.id }});">
+                    <div class="form-group">
+                        <label for="item-name">Food / Drink Name <span class="req">*</span></label>
+                        <input type="text" id="item-name" class="form-input" placeholder="e.g. Veg Meals, Chicken Biryani, Water Bottle" required>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="item-category">Category <span class="req">*</span></label>
+                            <select id="item-category" class="form-select" required>
+                                <option value="Veg" selected>🟢 Veg Food</option>
+                                <option value="Non-Veg">🔴 Non-Veg Food</option>
+                                <option value="Drinks">🔵 Drinks & Beverages</option>
+                                <option value="Other">🟣 Other / Snacks</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="item-quantity">Quantity <span class="req">*</span></label>
+                            <input type="number" id="item-quantity" class="form-input" value="1" min="0.1" step="any" oninput="updateLiveItemTotal()" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="item-price">Price Per Item (₹) <span class="req">*</span></label>
+                            <input type="number" id="item-price" class="form-input" placeholder="e.g. 120.00" min="0" step="any" oninput="updateLiveItemTotal()" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Calculated Total Price</label>
+                            <div class="computed-price-badge" id="live-item-total">₹0.00</div>
+                        </div>
+                    </div>
+
+                    <!-- CRITICAL FEATURE: ITEM ALLOCATION -->
+                    <div class="allocation-section">
+                        <div class="section-subtitle">
+                            <strong>Item Consumer Allocation</strong>
+                            <small class="helper-text">Assign who consumed this item so only they pay.</small>
+                        </div>
+
+                        <!-- Split Type Radio Tabs -->
+                        <div class="split-type-tabs">
+                            <label class="tab-label">
+                                <input type="radio" name="split-type" value="single" checked onchange="toggleAllocationMode()">
+                                <span>Single Person</span>
+                            </label>
+                            <label class="tab-label">
+                                <input type="radio" name="split-type" value="equal_shared" onchange="toggleAllocationMode()">
+                                <span>Split Equally</span>
+                            </label>
+                            <label class="tab-label">
+                                <input type="radio" name="split-type" value="custom_shared" onchange="toggleAllocationMode()">
+                                <span>Custom Shares / Units</span>
+                            </label>
+                        </div>
+
+                        <!-- SINGLE PERSON SELECTOR -->
+                        <div id="single-person-selector" class="allocation-box">
+                            <label for="single-member-select">Select Person Who Had This:</label>
+                            <select id="single-member-select" class="form-select">
+                                {% for m in members %}
+                                <option value="{{ m.id }}">{{ m.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- SHARED / MULTI-PERSON SELECTOR -->
+                        <div id="shared-person-selector" class="allocation-box" style="display: none;">
+                            <div class="shared-header-actions">
+                                <span>Select who shared this item:</span>
+                                <button type="button" class="btn-link" onclick="selectAllSharedMembers(true)">Select All</button>
+                                <button type="button" class="btn-link text-muted" onclick="selectAllSharedMembers(false)">Deselect All</button>
+                            </div>
+
+                            <div class="member-checkbox-list" id="shared-members-checklist">
+                                {% for m in members %}
+                                <div class="member-check-item">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" class="shared-member-chk" value="{{ m.id }}" data-name="{{ m.name }}" onchange="updateAllocationPreview()">
+                                        <span class="chk-name">{{ m.name }}</span>
+                                    </label>
+                                    <div class="custom-unit-input-wrap" style="display: none;" id="custom-unit-wrap-{{ m.id }}">
+                                        <input type="number" class="form-input-sm custom-unit-val" data-member-id="{{ m.id }}" value="1" min="0.1" step="any" oninput="updateAllocationPreview()" placeholder="Units">
+                                        <small>units</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="allocation-live-preview" id="allocation-live-preview">
+                                <small class="text-muted">Select at least one member to preview split.</small>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-lg mt-3" id="btn-add-item" {% if not members %}disabled{% endif %}>
+                        + Add Item to Bill
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right Column: Food Items Table & Live Group Bill -->
+    <div class="group-right-col">
+
+        <!-- Quick Summary Bar -->
+        <div class="card summary-banner-card mb-4">
+            <div class="summary-banner-inner">
+                <div>
+                    <span class="banner-label">Current Group Bill</span>
+                    <h2 class="banner-amount" id="banner-group-total">{{ summary.total_group_bill|currency }}</h2>
+                    <small class="text-muted"><span id="banner-items-count">{{ items|length }}</span> items recorded</small>
+                </div>
+                <div class="summary-banner-buttons">
+                    <a href="{{ url_for('export_csv', group_id=group.id) }}" class="btn btn-secondary btn-sm">📥 Export CSV</a>
+                    <a href="{{ url_for('group_summary_view', group_id=group.id) }}" class="btn btn-emerald">
+                        📊 Full Settlement &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Food Items Table Card -->
+        <div class="card">
+            <div class="card-header-flex">
+                <h3>🍽️ Bill Items (<span id="items-table-count">{{ items|length }}</span>)</h3>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="data-table" id="items-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item Name</th>
+                                <th>Category</th>
+                                <th>Qty</th>
+                                <th>Price (₹)</th>
+                                <th>Total (₹)</th>
+                                <th>Allocated To</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-table-body">
+                            {% if items %}
+                                {% for item in items %}
+                                <tr id="item-row-{{ item.id }}">
+                                    <td>{{ loop.index }}</td>
+                                    <td><strong>{{ item.name }}</strong></td>
+                                    <td>
+                                        {% if item.category == 'Veg' %}
+                                            <span class="badge badge-veg">🟢 Veg</span>
+                                        {% elif item.category == 'Non-Veg' %}
+                                            <span class="badge badge-nonveg">🔴 Non-Veg</span>
+                                        {% elif item.category == 'Drinks' %}
+                                            <span class="badge badge-drinks">🔵 Drinks</span>
+                                        {% else %}
+                                            <span class="badge badge-other">🟣 Other</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>{{ item.price_per_item|currency }}</td>
+                                    <td><strong class="text-dark">{{ item.total_price|currency }}</strong></td>
+                                    <td>
+                                        {% if item.split_type == 'single' %}
+                                            <span class="badge badge-indigo">👤 {{ item.assigned_names }}</span>
+                                        {% else %}
+                                            <span class="badge badge-shared">👥 Shared: {{ item.assigned_names }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right table-actions">
+                                        <button class="btn btn-xs btn-outline" onclick="openEditItemModal({{ item.id }})">Edit</button>
+                                        <button class="btn btn-xs btn-danger" onclick="confirmDeleteItem({{ item.id }}, '{{ item.name }}')">Delete</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr id="no-items-row">
+                                    <td colspan="8" class="text-center text-muted p-4">
+                                        No food items added yet. Use the form on the left to add food items and allocate them.
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- EDIT ITEM MODAL -->
+<div id="edit-item-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Edit Food Item</h3>
+            <button class="modal-close-btn" onclick="closeEditItemModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="edit-item-id">
+            
+            <div class="form-group">
+                <label for="edit-item-name">Food / Drink Name <span class="req">*</span></label>
+                <input type="text" id="edit-item-name" class="form-input" required>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="edit-item-category">Category</label>
+                    <select id="edit-item-category" class="form-select">
+                        <option value="Veg">🟢 Veg Food</option>
+                        <option value="Non-Veg">🔴 Non-Veg Food</option>
+                        <option value="Drinks">🔵 Drinks & Beverages</option>
+                        <option value="Other">🟣 Other / Snacks</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-item-quantity">Quantity</label>
+                    <input type="number" id="edit-item-quantity" class="form-input" min="0.1" step="any" oninput="updateEditItemTotal()" required>
+                </div>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label for="edit-item-price">Price Per Item (₹)</label>
+                    <input type="number" id="edit-item-price" class="form-input" min="0" step="any" oninput="updateEditItemTotal()" required>
+                </div>
+                <div class="form-group">
+                    <label>Updated Total Price</label>
+                    <div class="computed-price-badge" id="edit-live-item-total">₹0.00</div>
+                </div>
+            </div>
+
+            <!-- Allocation for edit -->
+            <div class="allocation-section">
+                <div class="section-subtitle">
+                    <strong>Consumer Allocation</strong>
+                </div>
+
+                <div class="split-type-tabs">
+                    <label class="tab-label">
+                        <input type="radio" name="edit-split-type" value="single" checked onchange="toggleEditAllocationMode()">
+                        <span>Single Person</span>
+                    </label>
+                    <label class="tab-label">
+                        <input type="radio" name="edit-split-type" value="equal_shared" onchange="toggleEditAllocationMode()">
+                        <span>Split Equally</span>
+                    </label>
+                    <label class="tab-label">
+                        <input type="radio" name="edit-split-type" value="custom_shared" onchange="toggleEditAllocationMode()">
+                        <span>Custom Units</span>
+                    </label>
+                </div>
+
+                <div id="edit-single-person-selector" class="allocation-box">
+                    <label for="edit-single-member-select">Select Person:</label>
+                    <select id="edit-single-member-select" class="form-select">
+                        {% for m in members %}
+                        <option value="{{ m.id }}">{{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="edit-shared-person-selector" class="allocation-box" style="display: none;">
+                    <div class="shared-header-actions">
+                        <span>Select who shared this item:</span>
+                        <button type="button" class="btn-link" onclick="selectAllEditSharedMembers(true)">Select All</button>
+                        <button type="button" class="btn-link text-muted" onclick="selectAllEditSharedMembers(false)">Deselect All</button>
+                    </div>
+                    <div class="member-checkbox-list" id="edit-shared-members-checklist">
+                        {% for m in members %}
+                        <div class="member-check-item">
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="edit-shared-member-chk" value="{{ m.id }}" data-name="{{ m.name }}">
+                                <span>{{ m.name }}</span>
+                            </label>
+                            <div class="custom-unit-input-wrap" style="display: none;" id="edit-custom-unit-wrap-{{ m.id }}">
+                                <input type="number" class="form-input-sm edit-custom-unit-val" data-member-id="{{ m.id }}" value="1" min="0.1" step="any">
+                                <small>units</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeEditItemModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitUpdateFoodItem()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT GROUP MODAL -->
+<div id="edit-group-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Edit Group Details</h3>
+            <button class="modal-close-btn" onclick="closeEditGroupModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="edit-group-id">
+            <div class="form-group">
+                <label for="edit-group-name">Group / Restaurant Name <span class="req">*</span></label>
+                <input type="text" id="edit-group-name" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-group-notes">Notes / Date</label>
+                <input type="text" id="edit-group-notes" class="form-input">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeEditGroupModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitUpdateGroup()">Update</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Pass current group ID to JS
+    const CURRENT_GROUP_ID = {{ group.id }};
+</script>
+{% endblock %}

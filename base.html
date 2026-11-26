@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Group Food & Expense Splitter{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="{% if is_print_mode %}print-mode{% endif %}">
+
+    <!-- Top Navigation Bar (Hidden during printing) -->
+    <header class="navbar no-print">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="brand-logo">
+                <span class="logo-icon">🍲</span>
+                <span class="logo-text">GROUP EXPENSE <span class="highlight">SPLITTER</span></span>
+            </a>
+            <nav class="nav-links">
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.path == '/' %}active{% endif %}">Home</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">Dashboard / Bills</a>
+                <button class="btn btn-primary btn-sm" onclick="openNewGroupModal()">+ New Bill Group</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-wrapper">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer (Hidden during printing) -->
+    <footer class="footer no-print">
+        <div class="footer-container">
+            <p><strong>Group Food & Expense Splitter</strong> — Smart, individual-based food bill splitting for friends.</p>
+            <p class="copyright">Nobody pays for food they didn't eat. Built with Python Flask & SQLite.</p>
+        </div>
+    </footer>
+
+    <!-- Global Toast Notification Container -->
+    <div id="toast-container" class="toast-container no-print"></div>
+
+    <!-- Create Group Modal -->
+    <div id="new-group-modal" class="modal-backdrop no-print" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Start New Bill Group</h3>
+                <button class="modal-close-btn" onclick="closeNewGroupModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="modal-group-name">Restaurant or Event Name <span class="req">*</span></label>
+                    <input type="text" id="modal-group-name" class="form-input" placeholder="e.g. Paradise Biryani, Friday Dinner" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-group-notes">Notes / Date (Optional)</label>
+                    <input type="text" id="modal-group-notes" class="form-input" placeholder="e.g. Birthday treat, Table 5">
+                </div>
+                <div class="form-group">
+                    <label for="modal-initial-members">Initial Members (Optional, comma-separated)</label>
+                    <input type="text" id="modal-initial-members" class="form-input" placeholder="e.g. Akshaya, Rahul, Sneha, Vikram">
+                    <small class="helper-text">You can also add or remove people later at any time.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeNewGroupModal()">Cancel</button>
+                <button class="btn btn-primary" id="btn-create-group" onclick="submitCreateGroup()">Create & Start Splitting</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

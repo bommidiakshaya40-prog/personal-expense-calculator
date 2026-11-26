@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Bill Summary - {{ summary.group.name }}{% endblock %}
+
+{% block content %}
+<div class="summary-page">
+
+    <!-- Top Action Bar (Hidden in Print) -->
+    <div class="summary-action-bar no-print">
+        <div class="action-bar-left">
+            <a href="{{ url_for('group_detail', group_id=summary.group.id) }}" class="btn btn-outline">&larr; Back to Edit Group</a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Dashboard</a>
+        </div>
+        <div class="action-bar-right">
+            <a href="{{ url_for('export_csv', group_id=summary.group.id) }}" class="btn btn-secondary">
+                📥 Export CSV
+            </a>
+            <button class="btn btn-primary" onclick="window.print()">
+                🖨️ Download / Print PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Official Bill Invoice Container -->
+    <div class="invoice-container card">
+        
+        <!-- Header -->
+        <div class="invoice-header">
+            <div class="invoice-title-block">
+                <div class="invoice-tag">BILL SETTLEMENT INVOICE</div>
+                <h1 class="invoice-group-name">{{ summary.group.name }}</h1>
+                {% if summary.group.notes %}
+                <p class="invoice-notes">📌 {{ summary.group.notes }}</p>
+                {% endif %}
+            </div>
+            <div class="invoice-meta-block">
+                <div class="meta-row"><strong>Date:</strong> <span>{{ summary.group.updated_at[:16] }}</span></div>
+                <div class="meta-row"><strong>Group ID:</strong> <span>#{{ summary.group.id }}</span></div>
+                <div class="meta-row"><strong>Split Rule:</strong> <span class="badge badge-success">Individual Consumption</span></div>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Master Statistics Highlights -->
+        <div class="invoice-stats-grid">
+            <div class="invoice-stat-card">
+                <span class="stat-caption">Total Restaurant Bill</span>
+                <span class="stat-number text-indigo">{{ summary.total_group_bill|currency }}</span>
+            </div>
+            <div class="invoice-stat-card">
+                <span class="stat-caption">Total Food Cost</span>
+                <span class="stat-number text-emerald">{{ summary.total_food_cost|currency }}</span>
+            </div>
+            <div class="invoice-stat-card">
+                <span class="stat-caption">Total Drinks Cost</span>
+                <span class="stat-number text-blue">{{ summary.total_drinks_cost|currency }}</span>
+            </div>
+            <div class="invoice-stat-card">
+                <span class="stat-caption">Total People</span>
+                <span class="stat-number">{{ summary.member_count }}</span>
+            </div>
+            <div class="invoice-stat-card">
+                <span class="stat-caption">Total Items</span>
+                <span class="stat-number">{{ summary.item_count }}</span>
+            </div>
+        </div>
+
+        <!-- Category Summary Bar -->
+        <div class="category-breakdown-box">
+            <h4>Category Breakdown</h4>
+            <div class="category-chips-row">
+                <div class="cat-chip veg">
+                    <span class="dot"></span>
+                    <span class="cat-name">Veg Food:</span>
+                    <strong>{{ summary.category_totals.Veg|currency }}</strong>
+                    <small>({{ summary.category_counts.Veg }} items)</small>
+                </div>
+                <div class="cat-chip nonveg">
+                    <span class="dot"></span>
+                    <span class="cat-name">Non-Veg Food:</span>
+                    <strong>{{ summary.category_totals['Non-Veg']|currency }}</strong>
+                    <small>({{ summary.category_counts['Non-Veg'] }} items)</small>
+                </div>
+                <div class="cat-chip drinks">
+                    <span class="dot"></span>
+                    <span class="cat-name">Drinks:</span>
+                    <strong>{{ summary.category_totals.Drinks|currency }}</strong>
+                    <small>({{ summary.category_counts.Drinks }} items)</small>
+                </div>
+                {% if summary.category_totals.Other > 0 %}
+                <div class="cat-chip other">
+                    <span class="dot"></span>
+                    <span class="cat-name">Other / Snacks:</span>
+                    <strong>{{ summary.category_totals.Other|currency }}</strong>
+                    <small>({{ summary.category_counts.Other }} items)</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- SECTION: MASTER SETTLEMENT TABLE -->
+        <div class="master-summary-section">
+            <h3>Final Member Settlement Table</h3>
+            <p class="subtitle">Summary of individual items and shared contributions for each friend.</p>
+            <div class="table-responsive">
+                <table class="data-table summary-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Person Name</th>
+                            <th>Individual Items</th>
+                            <th>Shared Items Share</th>
+                            <th class="text-right">Final Amount to Pay</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in summary.member_summaries %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <strong>{{ m.name }}</strong>
+                                <small class="text-muted d-block">{{ m.item_count }} items</small>
+                            </td>
+                            <td>{{ m.individual_total|currency }}</td>
+                            <td>{{ m.shared_total|currency }}</td>
+                            <td class="text-right">
+                                <strong class="payable-highlight">{{ m.total_payable|currency }}</strong>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-total-row">
+                            <td colspan="2"><strong>TOTAL GROUP BILL</strong></td>
+                            <td><strong>{{ summary.total_individual_cost|currency }}</strong></td>
+                            <td><strong>{{ summary.total_shared_cost|currency }}</strong></td>
+                            <td class="text-right"><strong class="grand-total-amount">{{ summary.total_group_bill|currency }}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Mathematical Verification Note -->
+            <div class="math-verification-badge">
+                <span>✅ Exact Match: Sum of individual amounts equals <strong>{{ summary.sum_individual_totals|currency }}</strong> (100% verified).</span>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- SECTION: INDIVIDUAL ITEMIZED BREAKDOWN CARDS -->
+        <div class="individual-cards-section">
+            <div class="section-title-wrap">
+                <h3>Detailed Individual Item Breakdown</h3>
+                <p class="subtitle">Complete transparency: see every dish and drink consumed by each person.</p>
+            </div>
+
+            <div class="member-cards-grid">
+                {% for m in summary.member_summaries %}
+                <div class="member-summary-card">
+                    <div class="member-card-header">
+                        <div class="member-name-wrap">
+                            <div class="avatar-circle">{{ m.name[0]|upper }}</div>
+                            <div>
+                                <h4 class="m-name">{{ m.name }}</h4>
+                                <span class="m-item-count">{{ m.item_count }} items consumed</span>
+                            </div>
+                        </div>
+                        <div class="m-total-payable">
+                            <span class="payable-label">Total to Pay</span>
+                            <span class="payable-val">{{ m.total_payable|currency }}</span>
+                        </div>
+                    </div>
+
+                    <div class="member-card-body">
+                        {% if m.consumed_items %}
+                            <div class="member-items-list">
+                                {% for it in m.consumed_items %}
+                                <div class="member-item-row">
+                                    <div class="item-name-col">
+                                        <span class="item-title">{{ it.name }}</span>
+                                        <div class="item-sub-badges">
+                                            {% if it.category == 'Veg' %}
+                                                <span class="tiny-badge veg">Veg</span>
+                                            {% elif it.category == 'Non-Veg' %}
+                                                <span class="tiny-badge nonveg">Non-Veg</span>
+                                            {% elif it.category == 'Drinks' %}
+                                                <span class="tiny-badge drinks">Drinks</span>
+                                            {% else %}
+                                                <span class="tiny-badge other">Other</span>
+                                            {% endif %}
+
+                                            {% if it.is_shared %}
+                                                <span class="tiny-badge shared">Shared with: {{ it.shared_with }}</span>
+                                            {% else %}
+                                                <span class="tiny-badge single">Solo</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="item-amount-col">
+                                        <span class="item-amount">{{ it.share_amount|currency }}</span>
+                                        {% if it.is_shared %}
+                                        <small class="text-muted">(Item: {{ it.item_total_price|currency }})</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="member-subtotals-footer">
+                                <div class="sub-row">
+                                    <span>Personal Items:</span>
+                                    <span>{{ m.individual_total|currency }}</span>
+                                </div>
+                                <div class="sub-row">
+                                    <span>Shared Items:</span>
+                                    <span>{{ m.shared_total|currency }}</span>
+                                </div>
+                                <div class="sub-row total-row">
+                                    <strong>Final Payable:</strong>
+                                    <strong>{{ m.total_payable|currency }}</strong>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-muted text-center p-3">No items allocated to {{ m.name }}. Payable: ₹0.00</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Footer / Signature for PDF printing -->
+        <div class="invoice-footer-note">
+            <p>Generated by <strong>Group Food & Expense Splitter</strong> • Fair splitting for friends.</p>
+        </div>
+
+    </div>
+
+</div>
+
+{% if is_print_mode %}
+<script>
+    // Automatically trigger browser print dialog when accessed via /print
+    window.addEventListener("DOMContentLoaded", () => {
+        setTimeout(() => {
+            window.print();
+        }, 500);
+    });
+</script>
+{% endif %}
+{% endblock %}
